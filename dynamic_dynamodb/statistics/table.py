@@ -81,7 +81,7 @@ def get_throttled_read_event_count(
     else:
         throttled_read_events = 0
 
-    logger.info('{0} - Read throttle count: {1:d}'.format(
+    logger.debug('{0} - Read throttle count: {1:d}'.format(
         table_name, throttled_read_events))
     return throttled_read_events
 
@@ -109,23 +109,17 @@ def get_throttled_by_provisioned_read_event_percent(
 
     if metrics:
         lookback_seconds = lookback_period * 60
-        throttled_read_events = (
-            float(metrics[0]['Sum']) / float(lookback_seconds))
+        throttled_read_events = float(metrics[0]['Sum']) / float(lookback_seconds)
     else:
         throttled_read_events = 0
 
     try:
-        table_read_units = dynamodb.get_provisioned_table_read_units(
-            table_name)
-
-        throttled_by_provisioned_read_percent = (
-            float(throttled_read_events) /
-            float(table_read_units) * 100)
+        table_read_units = dynamodb.get_provisioned_table_read_units(table_name)
+        throttled_by_provisioned_read_percent = throttled_read_events / float(table_read_units) * 100
     except JSONResponseError:
         raise
 
-    logger.info('{0} - Throttled read percent by provision: {1:.2f}%'.format(
-        table_name, throttled_by_provisioned_read_percent))
+    logger.debug('{0} - Throttled read percent by provision: {1:.2f}%'.format(table_name, throttled_by_provisioned_read_percent))
     return throttled_by_provisioned_read_percent
 
 
@@ -157,16 +151,11 @@ def get_throttled_by_consumed_read_percent(
         raise
 
     if metrics1 and metrics2:
-        lookback_seconds = lookback_period * 60
-        throttled_by_consumed_read_percent = (
-            (
-                (float(metrics2[0]['Sum']) / float(lookback_seconds)) /
-                (float(metrics1[0]['Sum']) / float(lookback_seconds))
-            ) * 100)
+        throttled_by_consumed_read_percent = float(metrics2[0]['Sum']) / float(metrics1[0]['Sum']) * 100
     else:
         throttled_by_consumed_read_percent = 0
 
-    logger.info('{0} - Throttled read percent by consumption: {1:.2f}%'.format(
+    logger.debug('{0} - Throttled read percent by consumption: {1:.2f}%'.format(
         table_name, throttled_by_consumed_read_percent))
     return throttled_by_consumed_read_percent
 
@@ -195,17 +184,13 @@ def get_consumed_write_units_percent(
 
     if metrics:
         lookback_seconds = lookback_period * 60
-        consumed_write_units = (
-            float(metrics[0]['Sum']) / float(lookback_seconds))
+        consumed_write_units = float(metrics[0]['Sum']) / float(lookback_seconds)
     else:
         consumed_write_units = 0
 
     try:
-        table_write_units = dynamodb.get_provisioned_table_write_units(
-            table_name)
-        consumed_write_units_percent = (
-            float(consumed_write_units) /
-            float(table_write_units) * 100)
+        table_write_units = dynamodb.get_provisioned_table_write_units(table_name)
+        consumed_write_units_percent = consumed_write_units / float(table_write_units) * 100
     except JSONResponseError:
         raise
 
@@ -240,7 +225,7 @@ def get_throttled_write_event_count(
     else:
         throttled_write_count = 0
 
-    logger.info('{0} - Write throttle count: {1:d}'.format(
+    logger.debug('{0} - Write throttle count: {1:d}'.format(
         table_name, throttled_write_count))
     return throttled_write_count
 

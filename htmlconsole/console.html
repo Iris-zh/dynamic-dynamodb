@@ -1,0 +1,561 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+<link rel="stylesheet" type="text/css" href="img/themes/default/easyui.css">
+<link rel="stylesheet" type="text/css" href="img/jquery-ui.min.css">
+
+<style>
+input.text { margin-bottom:10px; width:95%; padding: .2em; }
+select.text { margin-bottom:10px; width:95%; padding: .2em; }
+textarea.text { margin-bottom:10px; width:95%; padding: .2em; }
+
+/* http://stackoverflow.com/questions/896777/how-to-remove-close-button-on-the-jquery-ui-dialog */
+.ui-dialog-titlebar-close {display: none;}
+</style>
+
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery.easyui.min.js"></script>
+<script>
+var $easy = $.noConflict(true);
+</script>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery.ui.min.js"></script>
+<script type="text/javascript" src="jquery.blockui.js"></script>
+<script type="text/javascript" src="jquery.json.js"></script>
+<script type="text/javascript" src="jquery.jsonrpc.js"></script>
+
+<script>
+var g_gateway = '/dynamic_dynamodb/gateway-js.php';
+var TOKEN = "4bf2b8e0-1f78-9ac8-1258-dc825f3af3b2";
+var BASEURL = "http://172.30.0.55:8500/v1/kv/";
+</script>
+
+<script>
+function showblockUI(message)
+{
+	$.blockUI({
+		message: "<h1>" + message + "</h1>", 
+		css: { 
+			border: 'none', 
+			padding: '15px', 
+			backgroundColor: '#000', 
+			'-webkit-border-radius': '10px', 
+			'-moz-border-radius': '10px', 
+			opacity: .5, 
+			color: '#fff' 
+		}
+	});
+}
+
+function formToJson(_id)
+{
+	var l_data = $(_id).serializeArray().reduce(function(obj, item) {
+		if (item.value == "null")
+		{
+			obj[item.name] = null;
+		}
+		else if(item.value == "false" || item.value == "true")
+		{
+			obj[item.name] = item.value == "true";
+		}
+		else if (!isNaN(item.value))
+		{
+			obj[item.name] = Number(item.value);
+		}
+		else
+		{
+			obj[item.name] = item.value;
+		}
+
+		return obj;
+	}, {});
+
+	return l_data;
+}
+
+function makeFormFiledsgetItem(_name, _group)
+{
+	for(var l_i in _group)
+	{
+		if(_group[l_i]["name"] == _name)
+		{
+			return _group[l_i];
+		}
+	}
+
+	return null;
+}
+
+function makeFormFiledsgetItemContent(_i, _blockName, _item)
+{
+	var l_content = "";
+
+	if((_i % 2) == 0)
+	{
+		if (_i !=0 )
+		{
+			l_content += "</tr>";
+		};
+
+		l_content += "<tr>";
+	};
+
+	l_content += "<td>";
+
+	if (_blockName == "main")
+	{
+		l_content += "<b>" + _item["name"] + "</b>";
+	}
+	else
+	{
+		l_content += _item["name"] + "";
+	};
+
+	l_content += ":&nbsp;&nbsp;&nbsp;<input class='easyui-textbox' name='" + _item["name"] + "' type='text' value=\"" + _item["value"] + "\">";
+	l_content += "</td>";
+
+	return l_content;
+}
+
+function makeFormFileds(_formId, _data)
+{
+	var l_hideFiledsNames = ["tmp_alloc", "sns_topic_arn", "sns_message_types", "gsis"];
+	var l_fieldsGroups = {
+		"main": ["min_provisioned_reads", "max_provisioned_reads", "min_provisioned_writes", "max_provisioned_writes"],
+		"turning": ["decrease_writes_with", "increase_writes_with", "writes_lower_threshold", "writes_upper_threshold", "decrease_reads_with", "increase_reads_with", "reads_lower_threshold", "reads_upper_threshold"],
+		"units": ["decrease_reads_unit", "increase_reads_unit", "decrease_writes_unit", "increase_writes_unit"],
+		"timing": ["lookback_window_start", "lookback_period"]
+	};
+
+	var l_data = JSON.parse(atob(_data[0]["Value"]));
+	var l_formfields = {
+		"main": [],
+		"turning": [],
+		"units": [],
+		"timing": [],
+		"other": []
+	};
+
+	for(var l_key in l_data)
+	{
+		if (l_hideFiledsNames.indexOf(l_key) != -1)
+		{
+			continue;
+		};
+
+		var l_item = {"name": l_key, "value": l_data[l_key]};
+		var l_foundInGroups = false;
+
+		for(var l_groupName in l_fieldsGroups)
+		{
+			var l_group = l_fieldsGroups[l_groupName];
+
+			if (l_group.indexOf(l_key) != -1)
+			{
+				l_formfields[l_groupName].push(l_item);
+				l_foundInGroups = true;
+
+				break;
+			};
+		};
+
+		if(!l_foundInGroups)
+		{
+			l_formfields["other"].push(l_item);
+		}
+	};
+
+	var l_content = "<form id='ff_" + _formId + "' method='post'>";
+	var l_bloks = ["main", "turning", "units", "timing", "other"];
+
+	for(var l_i in l_bloks)
+	{
+		var l_blockName = l_bloks[l_i];
+		l_content += "<fieldset>";
+		l_content += "<legend>" + l_blockName + "</legend>";
+		l_content += "<table>";
+
+		var l_group = l_formfields[l_blockName];
+
+		if(l_blockName in l_fieldsGroups)
+		{
+			for(var l_i in l_fieldsGroups[l_blockName])
+			{
+				var l_itemName = l_fieldsGroups[l_blockName][l_i];
+				var l_item = makeFormFiledsgetItem(l_itemName, l_group);
+				l_content += makeFormFiledsgetItemContent(l_i, l_blockName, l_item)
+			};
+		}
+		else
+		{
+			for(var l_i in l_group)
+			{
+				var l_item = l_group[l_i];
+				l_content += makeFormFiledsgetItemContent(l_i, l_blockName, l_item)
+			};
+		};
+
+		l_content += "</table>";
+		l_content += "</fieldset>";
+	}
+
+	l_content += "<input type='submit' value='save' class='easyui-linkbutton'>";
+	l_content += "</form>";
+
+	return l_content;
+};
+
+function getTableData(_tableName, _callBack)
+{
+	showblockUI("Получаем данные...");
+	$.jsonRPC.withOptions({endPoint: g_gateway, namespace: 'consul'}, function(){
+		this.request(
+			"get_table",
+			{
+				params: [BASEURL, TOKEN, _tableName],
+
+				success: function(result)
+				{
+					_callBack(result.result)
+					$.unblockUI();
+				},
+
+				error: function(result)
+				{
+					showblockUI("Ошибка получения данных..");
+					window.setTimeout(function(){$.unblockUI();}, 3000)
+				}
+			}
+		)
+	})
+}
+
+function selectTableIndex(_tabIndex, _tableName, _tableIndexes)
+{
+	if(_tabIndex > 0)
+	{
+		showblockUI("Получаем данные...");
+		var l_tableIndexes = _tableIndexes;
+
+		$.jsonRPC.withOptions({endPoint: g_gateway, namespace: 'consul'}, function(){
+			this.request(
+				"get_table_index",
+				{
+					params: [BASEURL, TOKEN, _tableName, l_tableIndexes[_tabIndex - 1]],
+
+					success: function(result)
+					{
+						_data = result.result;
+						$easy('#tt_' + _tableName).tabs('update', {
+							tab: $easy('#tt_' + _tableName).tabs('getTab', _tabIndex),
+							options: {
+								"content": makeFormFileds(_tableName + "_" + l_tableIndexes[_tabIndex - 1], _data)
+							}
+						});
+
+						$.unblockUI();
+					},
+
+					error: function(result)
+					{
+						$.unblockUI();
+
+						showblockUI("Ошибка получения данных..");
+						window.setTimeout(function(){$.unblockUI();}, 3000)
+					}
+				}
+			)
+		});
+	}
+	else
+	{
+		getTableData(_tableName, function(_data)
+		{
+			$easy('#tt_' + _tableName).tabs('update', {
+				tab: $easy('#tt_' + _tableName).tabs('getTab', 0),
+				options: {
+					"content": makeFormFileds(_tableName, _data)
+				}
+			});
+		});
+	};
+}
+
+function saveFormToConsul(_method, _formid, _methodParams)
+{
+	showblockUI("Сохраняем...");
+	var l_data = formToJson(_formid);
+	var l_params = [BASEURL, TOKEN].concat(_methodParams, [JSON.stringify(l_data)])
+
+	$.jsonRPC.withOptions({endPoint: g_gateway, namespace: 'consul'}, function(){
+		this.request(
+			_method,
+			{
+				params: l_params,
+
+				success: function(result)
+				{
+					$.unblockUI();
+				},
+
+				error: function(result)
+				{
+					$.unblockUI();
+
+					showblockUI("Ошибка сохранения данных..");
+					window.setTimeout(function(){$.unblockUI();}, 3000)
+				}
+			}
+		)
+	});
+}
+
+function OnselectTableWithIndexes(_tableName, _tableIndexes)
+{
+	var l_tabsOptions = $easy('#tt_' + _tableName).tabs('options');
+	l_tabsOptions.onUpdate = function(_tabTitle, _tabIndex)
+	{
+		if (_tabIndex > 0)
+		{
+			$easy("#ff_" + _tableName + "_" + _tabTitle).form({
+				onSubmit: function(_params)
+				{
+					saveFormToConsul("save_table_index", "#ff_" + _tableName + "_" + _tabTitle, [_tableName, _tabTitle]);
+					return false;
+				}
+			})
+		}
+		else
+		{
+			//сохраняем натсройки самой таблицы
+			$easy("#ff_" + _tableName).form({
+				onSubmit: function(_params)
+				{
+					saveFormToConsul("save_table", "#ff_" + _tableName, [_tableName]);
+					return false;
+				}
+			})
+		}
+	}
+
+	l_tabsOptions.onSelect = function(_tabTitle, _tabIndex)
+	{
+		selectTableIndex(_tabIndex, _tableName, _tableIndexes);
+	}
+}
+
+function __showLoginOnloginClick(sender, successfn, errorfn)
+{
+	$( "#IDPlaceHolder" ).dialog( "destroy" );
+	showblockUI("Логинимся...");
+
+	$.jsonRPC.withOptions({endPoint: g_gateway, namespace: 'myauth'}, function(){
+		this.request(
+			"login",
+			{
+				params: [$("#login", sender).val(), $("#password", sender).val()],
+
+				success: function(result)
+				{
+					$.unblockUI();
+					successfn(result);
+				},
+
+				error: function(result)
+				{
+					$.unblockUI();
+					errorfn(result);
+				}
+			}
+		);
+	});
+};
+
+function __showLogin(loginOkFn)
+{
+	$("#IDPlaceHolder").load("dialogs/login.html", function()
+	{
+		$(this).dialog({
+			closeOnEscape: false,
+			width: 400,
+			modal: true,
+			dialogClass: "no-close",
+			title: "Login",
+			draggable: false,
+
+			buttons: [
+				{
+					'text': 'Login', 
+					'click': function()
+					{
+						__showLoginOnloginClick($(this),
+							function(result)
+							{
+								if(result.result)
+								{
+									loginOkFn();
+								}
+								else
+								{
+									showblockUI("Неверный логин");
+									setTimeout(function()
+									{
+										$.unblockUI();
+										__showLogin(loginOkFn);
+									},
+									1500);
+								}
+							},
+
+							function(result)
+							{
+								showError("Ошибка логина", result);
+							}
+						);
+					}
+				}
+			]
+		});
+	});
+};
+
+function startup()
+{
+	showblockUI("Получаем данные...");
+	$.jsonRPC.withOptions({endPoint: g_gateway, namespace: 'consul'}, function(){
+		this.request(
+			"get_projects",
+			{
+				params: [BASEURL, TOKEN],
+
+				success: function(result)
+				{
+					var l_data = result.result;
+					var l_treeStruct = [];
+
+					for (var l_appName in l_data)
+					{
+						if(l_data[l_appName] == null)
+							continue;
+
+						var l_item = {
+							"text": l_appName,
+							"state": 'closed',
+							"children": (function(_appInfo)
+							{
+								var l_retval = [];
+							
+								if(_appInfo != null)
+								{
+									for(var l_tableName in _appInfo)
+									{
+										var l_item = {
+											"text": l_tableName,
+											"table": _appInfo[l_tableName]
+										};
+
+										l_retval.push(l_item);
+									};
+								};
+
+								return l_retval;
+							})(l_data[l_appName])
+						};
+
+						l_treeStruct.push(l_item);
+					};
+
+					$easy("#tr").tree({
+						"data": l_treeStruct,
+						"onClick": function(_node)
+						{
+							if (_node.table)
+							{
+								var l_panel = $easy("#ll").layout("panel", "center");
+								var l_TableName = _node.text;
+
+								l_panel.panel('setTitle', l_TableName);
+
+								if (_node.table.length)
+								{
+									var l_content = "<div title='MainTable' style='padding:10px;'>MainTable</div>";
+
+									for(var l_i = 0; l_i < _node.table.length; ++l_i)
+									{
+										var l_menuItem = _node.table[l_i];
+										l_content += "<div title='" + l_menuItem + "' style='padding:10px;'>" + l_menuItem + "</div>"
+									};
+
+									l_panel.panel({
+										"title": l_TableName,
+										"content": "<div id='tt_" + l_TableName + "' class='easyui-tabs' data-options='fit:true,cache:false'>" + l_content + "</div>"
+									});
+
+									OnselectTableWithIndexes(l_TableName, _node.table);
+									$easy('#tt_' + l_TableName).tabs('unselect', 0);
+									$easy('#tt_' + l_TableName).tabs('select', 0);
+								}
+								else
+								{
+									getTableData(l_TableName, function(_data)
+									{
+										l_panel.panel({
+											"title": l_TableName,
+											"content": makeFormFileds(l_TableName, _data)
+										});
+
+										$easy("#ff_" + l_TableName).form({
+											onSubmit: function(_params)
+											{
+												saveFormToConsul("save_table", "#ff_" + l_TableName, [l_TableName]);
+												return false;
+											}
+										});
+									});
+								}
+							};
+						}
+					});
+
+					$.unblockUI();
+				},
+
+				error: function(result)
+				{
+					$.unblockUI();
+
+					if(result.error['faultCode'] == 'AMFPHP_AUTHENTICATE_ERROR')
+					{
+						__showLogin(function(){startup();});
+					}
+					else
+					{
+						showblockUI("Ошибка получения данных..");
+						window.setTimeout(function(){$.unblockUI();}, 3000)
+					};
+				}
+			}
+		)
+	});
+};
+</script>
+
+</head>
+
+<body>
+<div id="ll" class="easyui-layout" data-options="fit:true,cache:false">
+	<div data-options="region:'east',split:true" title="Apps" style="width:250px;">
+		<ul id="tr"></ul>
+	</div>
+	<div data-options="region:'center',title:'Main Title'">
+	</div>
+</div>
+
+<div id='IDPlaceHolder'></div>
+
+<script>
+startup();
+</script>
+</body>
+</html>

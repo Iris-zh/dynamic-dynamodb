@@ -16,7 +16,6 @@ DEFAULT_OPTIONS = {
         'daemon': False,
         'instance': 'default',
         'dry_run': False,
-        'show_config': False,
         'pid_file_dir': '/tmp',
         'run_once': False,
 
@@ -24,6 +23,8 @@ DEFAULT_OPTIONS = {
         'region': 'us-east-1',
         'aws_access_key_id': None,
         'aws_secret_access_key': None,
+        'consul_host': 'localhost',
+        'consul_token': None,
         'check_interval': 300,
         'circuit_breaker_url': None,
         'circuit_breaker_timeout': 10000.00

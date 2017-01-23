@@ -76,6 +76,12 @@ def decrease_reads_in_units(
 
     return updated_provisioning
 
+def decrease_reads(_units, _provisioned, _decreaseto, _minprovisioned, _tag):
+  if _units == "percent":
+    return decrease_reads_in_percent(_provisioned, _decreaseto, _minprovisioned, _tag)
+
+  else:
+    return decrease_reads_in_units(_provisioned, _decreaseto, _minprovisioned, _tag)
 
 def decrease_writes_in_percent(
         current_provisioning, percent, min_provisioned_writes, log_tag):
@@ -150,6 +156,12 @@ def decrease_writes_in_units(
 
     return updated_provisioning
 
+def decrease_writes(_units, _provisioned, _decreaseto, _minprovisioned, _tag):
+  if _units == "percent":
+    return decrease_writes_in_percent(_provisioned, _decreaseto, _minprovisioned, _tag)
+
+  else:
+    return decrease_writes_in_units(_provisioned, _decreaseto, _minprovisioned, _tag)
 
 def increase_reads_in_percent(
         current_provisioning, percent, max_provisioned_reads,
@@ -184,7 +196,7 @@ def increase_reads_in_percent(
 
     if max_provisioned_reads > 0:
         if updated_provisioning > max_provisioned_reads:
-            logger.info(
+            logger.warning(
                 '{0} - Reached provisioned reads max limit: {1}'.format(
                     log_tag,
                     max_provisioned_reads))
@@ -230,7 +242,7 @@ def increase_reads_in_units(
 
     if max_provisioned_reads > 0:
         if updated_provisioning > max_provisioned_reads:
-            logger.info(
+            logger.warning(
                 '{0} - Reached provisioned reads max limit: {1}'.format(
                     log_tag,
                     max_provisioned_reads))
@@ -244,6 +256,12 @@ def increase_reads_in_units(
 
     return updated_provisioning
 
+def  increase_reads(_units, current_provisioning, _increaseto, max_provisioned_reads, consumed_read_units_percent, log_tag):
+  if _units == "percent":
+    return increase_reads_in_percent(current_provisioning, _increaseto, max_provisioned_reads, consumed_read_units_percent, log_tag)
+
+  else:
+    return increase_reads_in_units(current_provisioning, _increaseto, max_provisioned_reads, consumed_read_units_percent, log_tag)
 
 def increase_writes_in_percent(
         current_provisioning, percent, max_provisioned_writes,
@@ -265,21 +283,20 @@ def increase_writes_in_percent(
     current_provisioning = float(current_provisioning)
     consumed_write_units_percent = float(consumed_write_units_percent)
     percent = float(percent)
-    consumption_based_current_provisioning = \
-        int(math.ceil(current_provisioning*(consumed_write_units_percent/100)))
+    l_current_consumed_capacity = int(math.ceil(current_provisioning * consumed_write_units_percent / 100))
 
-    if consumption_based_current_provisioning > current_provisioning:
-        increase = int(
-            math.ceil(consumption_based_current_provisioning*(percent/100)))
-        updated_provisioning = consumption_based_current_provisioning + increase
+    if l_current_consumed_capacity > current_provisioning:
+        l_increase = int(math.ceil(l_current_consumed_capacity * percent / 100))
+        updated_provisioning = l_current_consumed_capacity + l_increase
+
     else:
-        increase = int(math.ceil(current_provisioning*(float(percent)/100)))
-        updated_provisioning = current_provisioning + increase
+        l_increase = int(math.ceil(current_provisioning * percent / 100))
+        updated_provisioning = current_provisioning + l_increase
 
-    if max_provisioned_writes > 0:
+    if max_provisioned_writes:
         if updated_provisioning > max_provisioned_writes:
 
-            logger.info(
+            logger.warning(
                 '{0} - Reached provisioned writes max limit: {1}'.format(
                     log_tag,
                     max_provisioned_writes))
@@ -324,7 +341,7 @@ def increase_writes_in_units(
 
     if max_provisioned_writes > 0:
         if updated_provisioning > max_provisioned_writes:
-            logger.info(
+            logger.warning(
                 '{0} - Reached provisioned writes max limit: {1}'.format(
                     log_tag,
                     max_provisioned_writes))
@@ -337,6 +354,13 @@ def increase_writes_in_units(
             int(updated_provisioning)))
 
     return updated_provisioning
+
+def increase_writes(_units, _provisioned, _increaseto, _maxprovisioned, _concumed_writes_inpercent, _tag):
+  if _units == "percent":
+    return increase_writes_in_percent(_provisioned, _increaseto, _maxprovisioned, _concumed_writes_inpercent, _tag)
+
+  else:
+    return increase_writes_in_units(_provisioned, _increaseto, _maxprovisioned, _concumed_writes_inpercent, _tag)
 
 
 def is_consumed_over_proposed(
@@ -353,9 +377,8 @@ def is_consumed_over_proposed(
     :param consumed_units_percent: Percent of consumed units
     :returns: bool - if consumed is over max
     """
-    consumption_based_current_provisioning = \
-        int(math.ceil(current_provisioning*(consumed_units_percent/100)))
-    return consumption_based_current_provisioning > proposed_provisioning
+    l_consumed_capacity = math.ceil(current_provisioning* consumed_units_percent / 100)
+    return l_consumed_capacity > proposed_provisioning
 
 
 def __get_min_reads(current_provisioning, min_provisioned_reads, log_tag):

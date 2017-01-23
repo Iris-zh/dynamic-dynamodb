@@ -20,12 +20,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import json
 import re
 import sys
 import time
 
 from boto.exception import JSONResponseError, BotoServerError
+import consul
 
 from dynamic_dynamodb.aws import dynamodb
 from dynamic_dynamodb.core import gsi, table
@@ -107,6 +107,7 @@ def main():
 def execute():
     """ Ensure provisioning """
     boto_server_error_retries = 3
+    l_consulapi = consul.Consul(host=get_global_option('consul_host'), token=get_global_option('consul_token'))
 
     # Ensure provisioning
     for table_name, table_key in sorted(dynamodb.get_tables_and_gsis()):
@@ -127,11 +128,7 @@ def execute():
             #  has been met. This is coupled with a var in config,
             # "num_intervals_scale_down", to delay the scale-down
             table_num_consec_read_checks, table_num_consec_write_checks = \
-                table.ensure_provisioning(
-                    table_name,
-                    table_key,
-                    table_num_consec_read_checks,
-                    table_num_consec_write_checks)
+                table.ensure_provisioning(l_consulapi, table_name, table_key, table_num_consec_read_checks, table_num_consec_write_checks)
 
             CHECK_STATUS['tables'][table_name] = {
                 'reads': table_num_consec_read_checks,
@@ -164,7 +161,25 @@ def execute():
                             gsi_key))
                         sys.exit(1)
 
+            #получаем список индексов
+            l_gsi_candidates = {}
+
+            try:
+              l_gsiConfigPath = "dynamic-dynamodb/" + table_name + "/index/"
+              l_tmp, l_data = l_consulapi.kv.get(l_gsiConfigPath, keys=True)
+
+              if l_data:
+                  for gsi_name in l_data:
+                      gsi_name = gsi_name.rsplit("/", 1)[1]
+                      l_gsi_candidates[gsi_name] = gsi_name
+
+            except:
+              pass
+
             for gsi_name, gsi_key in sorted(gsi_names):
+                if gsi_name in l_gsi_candidates:
+                    del l_gsi_candidates[gsi_name]
+
                 try:
                     gsi_num_consec_read_checks = \
                         CHECK_STATUS['gsis'][gsi_name]['reads']
@@ -178,18 +193,17 @@ def execute():
                     gsi_num_consec_write_checks = 0
 
                 gsi_num_consec_read_checks, gsi_num_consec_write_checks = \
-                    gsi.ensure_provisioning(
-                        table_name,
-                        table_key,
-                        gsi_name,
-                        gsi_key,
-                        gsi_num_consec_read_checks,
-                        gsi_num_consec_write_checks)
+                    gsi.ensure_provisioning(l_consulapi, table_name, table_key, gsi_name, gsi_key, gsi_num_consec_read_checks, gsi_num_consec_write_checks)
 
                 CHECK_STATUS['gsis'][gsi_name] = {
                     'reads': gsi_num_consec_read_checks,
                     'writes': gsi_num_consec_write_checks
                 }
+
+            if not get_global_option('dry_run'):
+              #удаляем индексы из конфига которые более не существуют
+              for gsi_name, l_tmp in l_gsi_candidates.iteritems():
+                l_consulapi.kv.delete(l_gsiConfigPath + gsi_name)
 
         except JSONResponseError as error:
             exception = error.body['__type'].split('#')[1]

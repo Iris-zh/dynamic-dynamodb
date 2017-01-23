@@ -488,6 +488,18 @@ def parse(config_path):
                     'type': 'str'
                 },
                 {
+                    'key': 'consul_host',
+                    'option': 'consul-host',
+                    'required': False,
+                    'type': 'str'
+                },
+                {
+                    'key': 'consul_token',
+                    'option': 'consul-token',
+                    'required': False,
+                    'type': 'str'
+                },
+                {
                     'key': 'region',
                     'option': 'region',
                     'required': False,

@@ -1,0 +1,51 @@
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="img/themes/default/easyui.css">
+
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery.easyui.min.js"></script>
+</head>
+
+<body>
+<div id="tt" class="easyui-tabs" data-options="fit:true,cache:false"></div>
+
+<script>
+function addHoverMenu(mb, l_i)
+{
+  $("body").append("<div id='mm" + l_i + "'></div>");
+
+  mb.menubutton({
+    menu:'#mm' + l_i,
+  }).click(function(){
+    console.log(l_i);
+    $('#tt').tabs('select', l_i);
+  });
+
+  for(var l_j=0; l_j < (1 + parseInt(Math.random() * 5)); ++l_j)
+  {
+    $('#mm' + l_i).menu("appendItem", {
+      "text" : l_j 
+    });
+  };
+}
+
+$('#tt').tabs({});
+
+for(var l_i=0; l_i < 20; ++l_i)
+{
+  $('#tt').tabs('add', {
+    "title": "tab here" + l_i,
+    "content": "content" + l_i
+  });
+  
+  if (Math.random() >= 0.5)
+  {
+    var l_tab = $('#tt').tabs('getTab', l_i);
+    var mb = l_tab.panel('options').tab.find('a.tabs-inner');
+    addHoverMenu(mb, l_i);
+  }
+};
+</script>
+</body>
+
+</html>
